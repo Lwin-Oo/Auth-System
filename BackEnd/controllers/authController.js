@@ -7,29 +7,43 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/user');
 const { secretKey } = require('../config/keys');
 
+
 // Register
 exports.register = async (req, res) => {
-    try {
-      const { email, password } = req.body;
-  
-      // Check if the email already exists in the database
-      const existingUser = await User.findOne({ email });
-  
-      if (existingUser) {
-        // If the email already exists, return an error response
-        return res.status(400).json({ error: 'Email already exists' });
-      }
-  
-      // If the email doesn't exist, proceed with user registration
-      const hashedPassword = await bcrypt.hash(password, 10);
-      const user = new User({ email, password: hashedPassword });
-      await user.save();
-  
-      res.status(201).json({ message: 'User registered successfully' });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
+  try {
+    const { email, password, businessName, businessPhoneNumber, streetAddress, city, state, postalCode, country } = req.body;
+
+    // Check if the email already exists in the database
+    const existingUser = await User.findOne({ email });
+
+    if (existingUser) {
+      // If the email already exists, return an error response
+      return res.status(400).json({ error: 'Email already exists' });
     }
+
+    // If the email doesn't exist, proceed with user registration
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = new User({ 
+      email, 
+      password: hashedPassword, 
+      businessName, 
+      businessPhoneNumber, 
+      
+      streetAddress,
+      city,
+      state,
+      postalCode,
+      country
+      
+    });
+    await user.save();
+
+    res.status(201).json({ message: 'User registered successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 };
+
   
 
 
