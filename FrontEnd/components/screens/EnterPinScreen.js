@@ -22,7 +22,7 @@ const EnterPinScreen = ({ navigation }) => {
   const handleSubmit = async () => {
     try {
       const storedUserId = await AsyncStorage.getItem('userId');
-      // Assuming you have a function to hash the userId and get the PIN
+      // Hash the userId and get the PIN
       const hashedUserId = hashString(storedUserId); // Hash the user ID
       const storedPin = hashedUserId.substring(0, 4); // Get the first 4 characters of the hashed value
   
@@ -32,7 +32,7 @@ const EnterPinScreen = ({ navigation }) => {
       } else {
         // Incorrect PIN, display error message
         console.log('Incorrect PIN');
-        // You can display an error message to the user here
+        // Display an error message to the user here
       }
     } catch (error) {
       console.error('Error verifying PIN:', error);
