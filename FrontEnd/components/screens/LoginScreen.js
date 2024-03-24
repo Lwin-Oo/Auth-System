@@ -1,27 +1,53 @@
+// LoginScreen.js
+
 import React, { useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity } from 'react-native';
 import axios from 'axios';
-import ServicesScreen from './ServicesScreen';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Toast from 'react-native-toast-message';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [generatedPin, setGeneratedPin] = useState('');
 
+  const generatePin = () => {
+    const pin = Math.floor(1000 + Math.random() * 9000 );
+    setGeneratedPin(pin.toString());
+  };
+  
   const handleLogin = async () => {
     try {
-      const response = await axios.get(`http://localhost:3000/api/auth/user/${email}`);
-      const user = response.data;
-
-      if (user) {
-        const loginResponse = await axios.post('http://localhost:3000/api/auth/login', { email, password });
-        const { token } = loginResponse.data;
-        console.log('Login successful:', token);
-        // Navigate to another screen upon successful login
-        navigation.navigate('Our Services');
-      } else {
-        setErrorMessage('User does not exist. Please register first.');
-      }
+      const loginResponse = await axios.post('http://localhost:3000/api/auth/login', { email, password });
+      const { token } = loginResponse.data;
+  
+      // Parse the token to extract user ID
+      const decodedToken = token.split('.')[1];
+      const base64 = decodedToken.replace(/-/g, '+').replace(/_/g, '/');
+      const decodedData = JSON.parse(atob(base64));
+      const userId = decodedData.userId;
+  
+      console.log('Login successful. User ID:', userId);
+      await AsyncStorage.setItem('userId', userId);
+      console.log('User ID stored in AsyncStorage', userId);
+  
+      // Generate PIN and navigate to PinScreen
+      generatePin();
+      navigation.navigate('PinScreen', { generatedPin });
+  
+      // Show toast notification after navigation
+      Toast.show({
+        type: 'success',
+        text1: 'Login Successful',
+        text2: 'Welcome to the services page!',
+        visibilityTime: 3000,
+        autoHide: true,
+        topOffset: 30,
+        onShow: () => {},
+        onHide: () => {},
+        onPress: () => {}
+      });
     } catch (error) {
       console.error('Login failed:', error);
       if (error.response && error.response.data && error.response.data.error) {
@@ -30,6 +56,10 @@ const LoginScreen = ({ navigation }) => {
         setErrorMessage('An error occurred. Please try again later.');
       }
     }
+  };
+  
+  const handleForgotPassword = () => {
+    navigation.navigate('ForgotPassword'); // Navigate to the ForgotPassword screen
   };
 
   const handleRegister = () => {
@@ -54,7 +84,7 @@ const LoginScreen = ({ navigation }) => {
         value={password}
         secureTextEntry
       />
-      <TouchableOpacity style={styles.forgotPasswordButton}>
+      <TouchableOpacity style={styles.forgotPasswordButton} onPress={handleForgotPassword}>
         <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
       </TouchableOpacity>
       <Button title="Login" onPress={handleLogin} />
@@ -113,6 +143,8 @@ const styles = StyleSheet.create({
 });
 
 export default LoginScreen;
+
+
 
 
 

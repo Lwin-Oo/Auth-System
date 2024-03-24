@@ -1,19 +1,40 @@
-import React from 'react';
-import { View, Text, StyleSheet, Button } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, Button, Linking } from 'react-native';
+import Toast from 'react-native-toast-message';
 
-const ServicesScreen = () => {
+const ServicesScreen = ({ navigation, route }) => {
+  const userId = route?.params?.userId;
+
+  useEffect(() => {
+    // Show notification when component mounts
+    showLoginNotification();
+  }, []); // Empty dependency array ensures it runs only once when component mounts
+
+  // Function to show successful login notification
+  const showLoginNotification = () => {
+    Toast.show({
+      type: 'success',
+      text1: 'Login Successful',
+      text2: 'You have successfully logged in.',
+      visibilityTime: 3000,
+      autoHide: true,
+      topOffset: 30,
+    });
+  };
+
+  // Function to navigate to the Enter Pin Screen
+  const navigateToEnterPin = () => {
+    navigation.navigate('EnterPinScreen', { userId: userId });
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Services</Text>
       <View style={styles.service}>
         <Text style={styles.serviceTitle}>Invoice System</Text>
         <Text style={styles.serviceDescription}>Manage your invoices efficiently.</Text>
-        <Button title="Access Invoice System" onPress={() => console.log('Navigate to Invoice System')} />
-      </View>
-      <View style={styles.service}>
-        <Text style={styles.serviceTitle}>Mailing System</Text>
-        <Text style={styles.serviceDescription}>Send and manage emails seamlessly.</Text>
-        <Button title="Access Mailing System" onPress={() => console.log('Navigate to Mailing System')} />
+        <Button title="Access Invoice System" onPress={() => navigateToEnterPin(userId)} />
+
       </View>
     </View>
   );
@@ -60,3 +81,10 @@ const styles = StyleSheet.create({
 });
 
 export default ServicesScreen;
+
+
+
+
+
+
+

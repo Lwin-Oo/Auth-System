@@ -16,6 +16,7 @@ const RegisterScreen = ({ navigation }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState(null); // Define errorMessage state variable
   const [showPassword, setShowPassword] = useState(false); // Define showPassword state variable
+  const [verificationToken, setVerificationToken] = useState('');
 
   // Function to evaluate password strength
   const evaluatePasswordStrength = () => {
@@ -121,6 +122,10 @@ const RegisterScreen = ({ navigation }) => {
       confirmPassword,
     });
 
+    const { verificationToken } = response.data;
+    setVerificationToken(verificationToken);
+    setErrorMessage('Verification email sent. Check your inbox.');
+
     console.log('Registration successful:', response.data);
 
     // After successful registration, navigate back to LoginScreen
@@ -135,6 +140,10 @@ const RegisterScreen = ({ navigation }) => {
     }
   }
 };
+
+ const handleVerify = () => {
+    navigation.navigate('Verification', { email, verificationToken });
+  };
 
 
 
