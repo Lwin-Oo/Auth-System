@@ -19,6 +19,8 @@ app.use(cors({ origin: 'http://localhost:8081' }));
 app.use(express.json());
 app.use('/api/auth', authRoutes);
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
+
+module.exports = { app, server };

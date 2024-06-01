@@ -1,16 +1,10 @@
-// authController.js
-
-
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const speakeasy = require('speakeasy');
+const qrcode = require('qrcode');
 const User = require('../models/user');
 const { secretKey } = require('../config/keys');
 const uuid = require('uuid');
-const nodemailer = require('nodemailer');
-
-
-//Our Services
-const Invoice = require('../../../Invoice-app-native-2.0-master/App/BackEnd/models/invoiceModel');
 
 // Register
 exports.register = async (req, res) => {
@@ -27,69 +21,25 @@ exports.register = async (req, res) => {
 
     // If the email doesn't exist, proceed with user registration
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = new User({ 
-      email, 
-      password: hashedPassword, 
-      businessName, 
-      businessPhoneNumber, 
-      
+    const user = new User({
+      email,
+      password: hashedPassword,
+      businessName,
+      businessPhoneNumber,
       streetAddress,
       city,
       state,
       postalCode,
       country,
       invoices: [] // Initialize invoices array for each user
-      
     });
     await user.save();
 
-    // Generate verification token
-    const verificationToken = generateVerificationToken();
-
-    // Send verification link
-    sendVerificationEmail(email, verificationToken);
-
-    res.status(201).json({ message: 'User registered successfully', verificationToken });
+    res.status(201).json({ message: 'User registered successfully' });
   } catch (error) {
+    console.error('Error registering user:', error);
     res.status(500).json({ error: error.message });
   }
-};
-
-// Function to generate a verification token
-const generateVerificationToken = () => {
-  return uuid.v4(); // Generate a unique verification token
-};
-
-// Function to send a verification email
-const sendVerificationEmail = (email, verificationToken) => {
-  // Create a Nodemailer transporter using SMTP or other email service configuration
-  const transporter = nodemailer.createTransport({
-    host: 'smtp.office365.com',
-    port: 587,
-    secure: false, // true for 465, false for other ports
-    auth: {
-      user: 'info@usataxes.net', // Your Outlook email address
-      pass: 'your_password', // Your email password or app-specific password
-    },
-  });
-
-  // Craft the email content
-  const mailOptions = {
-    from: 'info@usataxes.net', // Sender address
-    to: email, // Recipient address
-    subject: 'Verification Email', // Email subject
-    text: `Click the following link to verify your email: http://yourapp.com/verify?token=${verificationToken}`, // Plain text body
-    html: `<p>Click the following link to verify your email: <a href="http://yourapp.com/verify?token=${verificationToken}">Verify Email</a></p>`, // HTML body
-  };
-
-  // Send the email
-  transporter.sendMail(mailOptions, (error, info) => {
-    if (error) {
-      console.error('Error sending verification email:', error);
-    } else {
-      console.log('Verification email sent:', info.response);
-    }
-  });
 };
 
 // Login
@@ -121,108 +71,105 @@ exports.login = async (req, res) => {
   }
 };
 
-
-  
-
+// Get User By Email
 exports.getUserByEmail = async (req, res) => {
-    try {
-      const { email } = req.params;
-      const user = await User.findOne({ email });
-  
-      if (user) {
-        res.status(200).json(user);
-      } else {
-        res.status(404).json({ error: 'User not found' });
-      }
-    } catch (error) {
-      res.status(500).json({ error: error.message });
+  try {
+    const { email } = req.params;
+    const user = await User.findOne({ email });
+
+    if (user) {
+      res.status(200).json(user);
+    } else {
+      res.status(404).json({ error: 'User not found' });
     }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 };
 
 // Request Password Reset
-exports.requestPasswordReset = async ( req, res ) => {
-  try{
+exports.requestPasswordReset = async (req, res) => {
+  try {
     const { email } = req.body;
     const user = await User.findOne({ email });
 
-    if(!user) {
-      return res.status(404).json({ error: 'User not found '});
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
 
-    const resetToken = generateResetToken();
-    user.resetToken = resetToken;
-    user.resetTokenExpiry = Date.now() + 3600000; // Token expires in 1 hour
+    // Generate a TOTP secret
+    const secret = speakeasy.generateSecret({ length: 20 });
+
+    // Save the TOTP secret in the user's record
+    user.totpSecret = secret.base32;
     await user.save();
 
-    sendPasswordResetEmail(email, resetToken);
-    res.status(200).json({ message: 'Password reset email sent successfully' });
+    console.log(`TOTP Secret for ${email}: ${secret.base32}`);
+
+    // Generate a QR code for the TOTP setup
+    const otpauthUrl = speakeasy.otpauthURL({
+      secret: secret.base32,
+      label: `AuthUSAT (${email})`,
+      issuer: 'USATaxes.Net',
+      encoding: 'base32'
+    });
+
+    // Generate the QR code image
+    qrcode.toDataURL(otpauthUrl, (err, data_url) => {
+      if (err) {
+        return res.status(500).json({ message: 'Error generating QR code' });
+      }
+
+      // Send the QR code image URL to the client
+      res.json({ qrCodeUrl: data_url });
+    });
+
   } catch (error) {
-    console.error('Error requesting password reset: ', error);
+    console.error('Error requesting password reset:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
 
-// Verify Reset Token
-exports.verifyResetToken = async ( req, res) => {
+exports.verifyResetToken = async (req, res) => {
   try {
-    const { token } = req.params;
-    const { newPassword } = req.body;
-    const user = await User.findOne({ resetToken: token });
+    const { email, token, newPassword } = req.body;
+    const user = await User.findOne({ email });
 
-    if( !user || user.resetTokenExpiry < Date.now()) {
-      return res.status(400).json({ error: ' Invalid or expired reset token' });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
 
-    user.password = newPassword;
-    user.resetToken = null;
-    user.resetTokenExpiry = null;
-    await user.save();
+    console.log(`Received data - Email: ${email}, Token: ${token}, New Password: ${newPassword}`);
+    console.log(`TOTP Secret for ${email}: ${user.totpSecret}`);
 
-    res.status(200).json({ message: ' Password reset successfully' });
-  } catch (error) {
-    console.error( 'Error resetting password: ', error);
-    res.status(500).json({ error: ' Internal Server error' });
-  }
-};
-
-// Helper function to generate a random reset token
-const generateResetToken = () => {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-};
-
-// Helper function to send password reset email
-const sendPasswordResetEmail = async (email, token) => {
-  try {
-    // Create a Nodemailer transporter
-    const transporter = nodemailer.createTransport({
-      // Configure SMTP settings for Outlook
-      host: 'smtp.office365.com',
-      port: 587,
-      secure: false, // true for 465, false for other ports
-      auth: {
-        user: 'info@usataxes.net', // company's email address
-        pass: 'password', // email password or app-specific password
-      },
+    const verified = speakeasy.totp.verify({
+      secret: user.totpSecret,
+      encoding: 'base32',
+      token: token,
+      window: 2 // Adjust the window size if necessary
     });
 
-    // Craft the email content
-    const mailOptions = {
-      from: 'info@usataxes.net', // Sender address
-      to: email, // Recipient address
-      subject: 'Password Reset Request', // Email subject
-      html: `<p>You have requested a password reset. Click the following link to reset your password:</p>
-             <a href="http://app.com/reset-password?token=${token}">Reset Password</a>`, // HTML body with password reset link
-    };
+    console.log(`TOTP Verification Result: ${verified}`);
 
-    // Send the email
-    await transporter.sendMail(mailOptions);
-    console.log('Password reset email sent successfully.');
+    if (!verified) {
+      console.log('TOTP verification failed');
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    // Hash the new password and save it
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.totpSecret = null; // Clear the TOTP secret after successful password reset
+    await user.save();
+
+    res.status(200).json({ message: 'Password reset successfully' });
   } catch (error) {
-    console.error('Error sending password reset email:', error);
-    throw new Error('Error sending password reset email');
+    console.error('Error resetting password:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
 
-
-
+// Helper function to generate a verification token
+const generateVerificationToken = () => {
+  return uuid.v4(); // Generate a unique verification token
+};
